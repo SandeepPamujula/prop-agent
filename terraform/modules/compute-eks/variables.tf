@@ -31,3 +31,10 @@ variable "tags" {
   description = "Tags to apply to resources"
   default     = {}
 }
+
+variable "secrets_read_policy_arn" {
+  type        = string
+  description = "Optional IAM policy ARN for reading Secrets Manager secrets"
+  default     = ""
+}
+

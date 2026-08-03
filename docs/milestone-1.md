@@ -22,7 +22,7 @@
 - Then they can securely fetch MongoDB URI and Okta client parameters via IAM IRSA
 - Size: S
 - Type: Infrastructure
-- Status: tbd
+- Status: done
 
 **M1.4 As a developer on this team, I want CI/CD pipeline scaffolding, so that I have automated builds and deployments.**
 - Given a push to the main branch

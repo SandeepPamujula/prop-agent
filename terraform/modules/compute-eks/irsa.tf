@@ -81,3 +81,46 @@ resource "aws_iam_role" "orchestrator_irsa" {
     }
   )
 }
+
+resource "aws_iam_role_policy_attachment" "orchestrator_secrets" {
+  count      = var.secrets_read_policy_arn != "" ? 1 : 0
+  policy_arn = var.secrets_read_policy_arn
+  role       = aws_iam_role.orchestrator_irsa.name
+}
+
+# IRSA Role: MCP Server
+resource "aws_iam_role" "mcp_server_irsa" {
+  name = "${var.cluster_name}-mcp-server-irsa"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Condition = {
+          StringEquals = {
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" = "system:serviceaccount:mcp-server:mcp-server-sa"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = merge(
+    var.tags,
+    {
+      Environment = var.environment
+    }
+  )
+}
+
+resource "aws_iam_role_policy_attachment" "mcp_server_secrets" {
+  count      = var.secrets_read_policy_arn != "" ? 1 : 0
+  policy_arn = var.secrets_read_policy_arn
+  role       = aws_iam_role.mcp_server_irsa.name
+}
+
