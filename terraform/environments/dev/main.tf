@@ -15,6 +15,13 @@ module "secrets" {
   environment = var.environment
 }
 
+module "ecr" {
+  source = "../../modules/ecr"
+
+  environment      = var.environment
+  repository_names = ["orchestrator", "model-gateway", "mcp-server"]
+}
+
 module "compute_eks" {
   source = "../../modules/compute-eks"
 
@@ -66,4 +73,8 @@ output "okta_secret_arn" {
 
 output "salesforce_secret_arn" {
   value = module.secrets.salesforce_secret_arn
+}
+
+output "ecr_repository_urls" {
+  value = module.ecr.repository_urls
 }

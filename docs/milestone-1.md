@@ -39,7 +39,7 @@
 - Then Docker images are pushed to ECR and deployed to the dev EKS namespace
 - Size: M
 - Type: CI/CD
-- Status: tbd
+- Status: done
 
 **M1.6 As a developer on this team, I want automated build/deploy for MCP Tool Servers, so that domain tools can be deployed independently.**
 - Given a successful CI build for the stdio or HTTP MCP Tool Servers
