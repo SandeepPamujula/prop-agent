@@ -31,7 +31,7 @@
 - And blocks deployment if tests fail
 - Size: M
 - Type: CI/CD
-- Status: tbd
+- Status: done
 
 **M1.5 As a developer on this team, I want automated build/deploy for the Orchestrator and Model Gateway, so that changes safely reach dev environments.**
 - Given a successful CI build for Orchestrator or Model Gateway

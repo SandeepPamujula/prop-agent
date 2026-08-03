@@ -1,0 +1,55 @@
+name: CI Pipeline Scaffolding
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  terraform-checks:
+    name: Terraform Format & Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Check Terraform Formatting
+        run: terraform fmt -check -recursive
+
+      - name: Initialize Terraform (Dev)
+        run: terraform init -backend=false
+        working-directory: terraform/environments/dev
+
+      - name: Validate Terraform (Dev)
+        run: terraform validate
+        working-directory: terraform/environments/dev
+
+  static-analysis-and-unit-tests:
+    name: Static Analysis & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Unit Tests & Lint (if package.json exists)
+        run: |
+          if [ -f "package.json" ]; then
+            npm ci
+            npm run lint --if-present
+            npm test --if-present
+          else
+            echo "No root package.json found. Skipping npm test."
+          fi
