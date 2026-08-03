@@ -45,3 +45,10 @@ variable "cluster_version" {
   description = "Kubernetes Version"
   default     = "1.30"
 }
+
+variable "acm_certificate_arn" {
+  type        = string
+  description = "ACM Certificate ARN (optional, generated if empty)"
+  default     = ""
+}
+

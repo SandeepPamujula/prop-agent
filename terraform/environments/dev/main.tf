@@ -19,6 +19,16 @@ module "compute_eks" {
   private_subnet_ids = module.networking.private_subnet_ids
 }
 
+module "api_gateway" {
+  source = "../../modules/api-gateway"
+
+  environment         = var.environment
+  vpc_id              = module.networking.vpc_id
+  public_subnet_ids   = module.networking.public_subnet_ids
+  acm_certificate_arn = var.acm_certificate_arn
+  target_port         = 8080
+}
+
 output "vpc_id" {
   value = module.networking.vpc_id
 }
@@ -33,4 +43,8 @@ output "eks_cluster_name" {
 
 output "eks_cluster_endpoint" {
   value = module.compute_eks.cluster_endpoint
+}
+
+output "alb_dns_name" {
+  value = module.api_gateway.alb_dns_name
 }

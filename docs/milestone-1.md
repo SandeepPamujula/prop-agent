@@ -14,7 +14,7 @@
 - Then it routes traffic to the EKS cluster and terminates TLS 1.2+
 - Size: M
 - Type: Infrastructure
-- Status: tbd
+- Status: done
 
 **M1.3 As a platform engineer, I want secrets management configured, so that services can securely access credentials.**
 - Given the secrets Terraform module is applied
