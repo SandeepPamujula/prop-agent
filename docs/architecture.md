@@ -110,14 +110,18 @@ graph TB
             MGW["Model Gateway Service<br/>(Bedrock API, retries,<br/>circuit breaker, PII redaction,<br/>cost attribution)"]
         end
 
-        subgraph "MCP Server Namespace"
+        subgraph "MCP Server Namespace (stdio)"
             MCP_SRV["MCP Tool Server<br/>(JSON-RPC 2.0 / stdio)"]
-            T1["troubleshoot_lookup"]
             T2["create_ticket"]
             T3["search_houses"]
-            MCP_SRV --> T1
             MCP_SRV --> T2
             MCP_SRV --> T3
+        end
+
+        subgraph "Troubleshoot Namespace (HTTP)"
+            TS_SRV["Troubleshoot MCP Server<br/>(JSON-RPC / HTTP)"]
+            T1["troubleshoot_lookup"]
+            TS_SRV --> T1
         end
     end
 
@@ -138,7 +142,8 @@ graph TB
     ALB --> ORCH
 
     ORCH -- "Internal gRPC/HTTP" --> MGW
-    ORCH -- "MCP (JSON-RPC 2.0 / stdio)" --> MCP_SRV
+    ORCH -- "MCP (stdio)" --> MCP_SRV
+    ORCH -- "MCP (HTTP/SSE)" --> TS_SRV
 
     MGW -- "ConverseStream API<br/>(IAM / VPC Endpoint)" --> BRK
 
@@ -165,7 +170,8 @@ graph TB
 | **ALB** | AWS-managed | TLS termination, path-based routing, WAF rules, health checks | Auto-scaling |
 | **Orchestrator Service** | EKS Fargate | Conversation lifecycle, JWT validation, intent routing via Claude tool_use, MCP client (spawns MCP server), SSE response assembly, session CRUD in MongoDB | HPA on CPU/memory + active connections |
 | **Model Gateway Service** | EKS Fargate | All Bedrock API interaction, IAM credential management, request/response logging, PII redaction before egress, retry with backoff, circuit breaker, model tier selection, cost attribution per conversation | HPA on active inference requests |
-| **MCP Tool Server** | EKS Fargate (co-located or sidecar) | Hosts all 3 tools behind standard MCP protocol, tool-level auth enforcement, request validation, tool dispatch | Scales with orchestrator |
+| **MCP Tool Server (stdio)** | EKS Fargate (co-located or sidecar) | Hosts `create_ticket` and `search_houses` behind standard MCP protocol via stdio | Scales with orchestrator |
+| **Troubleshoot MCP Server** | EKS Fargate (independent pod) | Hosts `troubleshoot_lookup` via HTTP/SSE. Dedicated MongoDB connection pool | Scales independently |
 | **MongoDB Atlas** | External managed | Session/conversation documents, property listing collections, Atlas Vector Search index, mock incident data (Phase 1–2) | Atlas auto-scaling (external) |
 
 ### 3.3 Inter-Component Communication
@@ -175,7 +181,8 @@ graph TB
 | Widget → ALB | HTTPS | POST (messages), SSE (stream) |
 | ALB → Orchestrator | HTTP/2 | Reverse proxy |
 | Orchestrator → Model Gateway | gRPC (internal) | Request-response with streaming |
-| Orchestrator → MCP Server | JSON-RPC 2.0 over stdio | Orchestrator spawns MCP server as child process; communicates over stdin/stdout per MCP spec |
+| Orchestrator → MCP Server (stdio) | JSON-RPC 2.0 over stdio | Orchestrator spawns MCP server as child process for lightweight tools |
+| Orchestrator → Troubleshoot Server | JSON-RPC 2.0 over HTTP | Orchestrator acts as HTTP MCP client to remote pod (Phase 2+) |
 | Model Gateway → Bedrock | HTTPS (AWS SDK) | `ConverseStream` API via VPC endpoint |
 | MCP Tools → MongoDB | `mongodb+srv://` (TLS) | Connection-pooled queries |
 | MCP Tools → Salesforce | HTTPS (REST) | OAuth 2.0 Client Credentials (Phase 3) |
@@ -200,7 +207,7 @@ All flows follow the same pattern:
 1. **Client → Orchestrator**: User message via `POST /chat/messages` (with optional JWT)
 2. **Orchestrator → Model Gateway**: `ConverseStream` with conversation history and tool declarations
 3. **Model Gateway → Bedrock**: Claude determines intent and emits `tool_use` event
-4. **Orchestrator → MCP Server**: JSON-RPC `tools/call` with tool arguments (+ auth context for `create_ticket`)
+4. **Orchestrator → MCP Server**: JSON-RPC `tools/call` via stdio or HTTP depending on tool (+ auth context for `create_ticket`)
 5. **MCP Server → Backend**: Tool executes against appropriate backend (fixtures Phase 1, live Phase 2+)
 6. **Orchestrator → Model Gateway**: `ConverseStream` with tool result for final response
 7. **Model Gateway → Client**: Streaming tokens via SSE
@@ -363,7 +370,8 @@ erDiagram
 | Service | Min Pool | Max Pool | Idle Timeout | Rationale |
 |---------|----------|----------|-------------|-----------|
 | Orchestrator | 5 | 20 | 30s | Session R/W on every request; moderate concurrency |
-| MCP Tool Server | 10 | 50 | 60s | Handles all tool queries; `troubleshoot_lookup` is the hottest path |
+| MCP Tool Server (stdio) | 2 | 10 | 60s | Handles lightweight tools (`create_ticket`, `search_houses`) |
+| Troubleshoot Server (HTTP)| 10 | 50 | 60s | Dedicated pool for Atlas Vector Search queries |
 | Ingestion Pipeline (CLI) | 1 | 5 | 10s | Batch process, short-lived |
 
 ---
@@ -373,7 +381,7 @@ erDiagram
 ### 6.1 Protocol
 
 All domain tools are exposed via the **Model Context Protocol (MCP)** standard:
-- **Transport**: JSON-RPC 2.0 over stdio (orchestrator spawns MCP server as a child process)
+- **Transport**: JSON-RPC 2.0 over stdio for lightweight tools. JSON-RPC over HTTP/SSE for `troubleshoot_lookup` (Phase 2+).
 - **Discovery**: The MCP server exposes a `tools/list` endpoint returning all available tools with their JSON Schema `inputSchema`
 - **Invocation**: The orchestrator calls `tools/call` with the tool name and arguments
 - **Schema Contract**: Phase 1 mocks and Phase 2+ live implementations satisfy the **same tool schemas** (Architectural Invariant #3)
@@ -700,7 +708,8 @@ timeline
 |-----------|---------|---------|---------|
 | **Orchestrator** | Core implementation (no auth) | + JWT validation, user context | Same + multi-region routing |
 | **Model Gateway** | Full (Sonnet only) | Same | + dynamic tier selection |
-| **MCP Tool Server** | Full (mock backends, no auth gate) | + Auth gate enforcement, live backends (except SF) | + Live Salesforce |
+| **MCP Tool Server (stdio)** | Full (mock backends, no auth) | + Auth gate for `create_ticket`, live `search_houses` | + Live Salesforce |
+| **Troubleshoot Server (HTTP)** | N/A (runs on stdio in Phase 1) | Deployed as separate pod. Live Atlas Vector Search | + response caching |
 | **Auth (Okta OIDC)** | Not integrated (all users anonymous) | Okta JWT validation, JWKS caching, auth gate on `create_ticket` | Same |
 | **`troubleshoot_lookup`** | Fixture JSON file | Atlas Vector Search | + response caching |
 | **`create_ticket`** | MongoDB `mock_cases` (no auth gate) | MongoDB `mock_cases` (auth gate enforced) | Salesforce REST API (clean slate, no mock data migration) |

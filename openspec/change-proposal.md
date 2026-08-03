@@ -33,7 +33,8 @@ A conversational agent deployed on AWS (`ap-south-1`) consisting of:
 | **Chat Widget** | Embedded `<script>` in existing portal, SSE streaming | React (TS) + Tailwind |
 | **Orchestrator Service** | Conversation lifecycle, intent routing, MCP client | Node.js (TS) |
 | **Model Gateway Service** | All Bedrock API interaction, PII redaction, retries | Node.js (TS) |
-| **MCP Tool Server** | Hosts domain tools behind MCP protocol | Node.js (TS) |
+| **MCP Tool Server (stdio)** | Hosts lightweight domain tools (`create_ticket`, `search_houses`) | Node.js (TS) |
+| **Troubleshoot MCP Server** | Hosts `troubleshoot_lookup` via HTTP (Phase 2+) | Node.js (TS) |
 
 ### Capabilities
 

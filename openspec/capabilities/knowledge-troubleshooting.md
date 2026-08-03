@@ -65,7 +65,7 @@ sequenceDiagram
     participant O as Orchestrator
     participant MGW as Model Gateway
     participant BRK as Bedrock (Claude)
-    participant MCP as MCP Server
+    participant MCP as Troubleshoot MCP Server (HTTP)
     participant T1 as troubleshoot_lookup
     participant DB as MongoDB Atlas<br/>(Vector Search)
 
@@ -83,8 +83,8 @@ sequenceDiagram
     BRK-->>MGW: tool_use: troubleshoot_lookup({query: "AC blowing warm air", category_filter: "hvac"})
     MGW-->>O: Tool call event
 
-    Note over O,T1: Step 2 — Execute MCP tool
-    O->>MCP: JSON-RPC call: troubleshoot_lookup
+    Note over O,T1: Step 2 — Execute remote HTTP MCP tool
+    O->>MCP: JSON-RPC over HTTP: troubleshoot_lookup
     MCP->>MCP: Auth check: none required ✅
     MCP->>T1: Execute
     T1->>DB: Atlas Vector Search query (embedded query → cosine similarity)
@@ -135,8 +135,8 @@ Expected response: *"I don't have enough information to answer that. Would you l
 
 | Phase | Backend | Notes |
 |-------|---------|-------|
-| Phase 1 | Fixture JSON file | Validates tool contract and intent routing |
-| Phase 2 | Atlas Vector Search (MongoDB) | Live RAG pipeline, real embeddings |
+| Phase 1 | Fixture JSON file (via stdio) | Validates tool contract and intent routing |
+| Phase 2 | Atlas Vector Search (via HTTP Pod) | Migrates to dedicated HTTP pod. Live RAG pipeline, real embeddings |
 | Phase 3 | Atlas Vector Search + response caching | Caching based on Phase 2 hotspot data |
 
 ## Out of Scope

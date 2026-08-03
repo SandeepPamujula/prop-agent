@@ -14,7 +14,7 @@ auth: none (orchestrator-level)
 
 The orchestration layer that manages the conversation lifecycle: intent routing via Claude `tool_use`, MCP tool dispatch, session state management, SSE response streaming, conversation history windowing, and human escalation detection. This capability is not exposed as an MCP tool — it is the orchestrator service itself.
 
-The orchestrator delegates all LLM interaction to the **Model Gateway** and all domain actions to the **MCP Tool Server**.
+The orchestrator delegates all LLM interaction to the **Model Gateway** and all domain actions to one or more **MCP Tool Servers**. Starting in Phase 2, the Orchestrator MUST maintain multiple MCP clients to support both `stdio` and remote HTTP/SSE tool execution concurrently.
 
 ## Requirements
 
